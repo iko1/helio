@@ -161,6 +161,11 @@ auto UringSocket::Send(const iovec* ptr, size_t len) -> Result<size_t> {
   Proactor* p = GetProactor();
 
   while (true) {
+    res = sendmsg(fd, &msg, 0);
+    CHECK_GE(res, 0);
+    if (res >= 0)
+      return res;
+
     FiberCall fc(p, timeout());
     fc->PrepSendMsg(fd, &msg, MSG_NOSIGNAL);
     fc->sqe()->flags |= register_flag();

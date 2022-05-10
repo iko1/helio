@@ -206,9 +206,11 @@ class ProactorBase {
   int wake_fd_;
   bool is_stopped_ = true;
 
+  char cache_line_1[64];
   std::atomic_uint32_t tq_seq_{0}, tq_full_ev_{0};
   std::atomic_uint32_t tq_wakeup_ev_{0};
   std::atomic_uint32_t algo_notify_cnt_{0} /* how many times this FiberAlgo woke up others */;
+  char cache_line_2[64];
   uint64_t suspend_cnt_ = 0;
 
   // We use fu2 function to allow moveable semantics.
