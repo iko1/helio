@@ -109,8 +109,8 @@ TEST_F(ProactorTest, SleepMany) {
 TEST_F(ProactorTest, SqeOverflow) {
   size_t unique_id = 0;
   char buf[128];
-
-  int fd = open(gflags::GetArgv0(), O_RDONLY | O_CLOEXEC);
+  const testing::TestInfo* const test_info = testing::UnitTest::GetInstance()->current_test_info();
+  int fd = open("./proactor_test", O_RDONLY | O_CLOEXEC);
   CHECK_GT(fd, 0);
 
   constexpr size_t kMaxPending = kRingDepth * 100;
