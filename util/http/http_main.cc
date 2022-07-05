@@ -1,6 +1,8 @@
 // Copyright 2022, Beeri 15.  All rights reserved.
 // Author: Roman Gershman (romange@gmail.com)
 //
+#include <mimalloc-new-delete.h>
+
 #include <absl/flags/usage.h>
 #include <absl/flags/usage_config.h>
 #include <absl/strings/match.h>
@@ -72,14 +74,27 @@ void ServerRun(ProactorPool* pool) {
 
   static const char kBody[]= R"({"message":"Hello, World!"})";
   using SB = h2::span_body<const char>;
-  static h2::response<SB> sb_resp(h2::status::ok, 11);
-  sb_resp.body() = boost::beast::span<const char>(kBody, strlen(kBody));
-  http::SetMime(http::kJsonMime, &sb_resp);
-  sb_resp.set(h2::field::server, "http_main");
+
+  using MyResp = h2::response<SB>;
+  thread_local unique_ptr<MyResp> sb_resp;
+
+  pool->Await([](unsigned index, auto*) {
+    sb_resp.reset(new MyResp(std::piecewise_construct,
+            std::make_tuple(),
+            std::make_tuple()));
+
+    sb_resp->result(h2::status::ok);
+    sb_resp->body() = boost::beast::span<const char>(kBody, strlen(kBody));
+    http::SetMime(http::kJsonMime, sb_resp.get());
+    sb_resp->set(h2::field::server, "http_main");
+  });
 
   auto json_cb = [](const http::QueryArgs& args, HttpContext* send) {
-    auto resp = sb_resp;
-    return send->Invoke(move(resp));
+    auto resp = *sb_resp;
+    resp.prepare_payload();
+    h2::response_serializer<SB> sr(resp);
+
+    send->Write(resp);
   };
 
   listener->RegisterCb("/json", json_cb);
@@ -136,6 +151,7 @@ void PrintObservation(const metrics::ObservationDescriptor& od, absl::Span<const
 bool HelpshortFlags(std::string_view f) {
   return absl::EndsWith(f, "proactor_pool.cc") || absl::EndsWith(f, "http_main.cc");
 }
+
 
 int main(int argc, char** argv) {
   absl::SetProgramUsageMessage("http example server");
